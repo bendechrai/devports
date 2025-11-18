@@ -1,3 +1,10 @@
+# 1.0.0 (2025-11-18)
+
+
+### Features
+
+* initial devports implementation ([77427d5](https://github.com/bendechrai/devports/commit/77427d5238199b18ede39287919c3791e6b9a938))
+
 ## [1.0.2](https://github.com/bendechrai/devports/compare/v1.0.1...v1.0.2) (2025-11-18)
 
 

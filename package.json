@@ -1,6 +1,6 @@
 {
   "name": "devports",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Port allocation manager for multi-project development",
   "type": "module",
   "bin": {
