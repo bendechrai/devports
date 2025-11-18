@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { writeFileSync, mkdirSync, rmSync } from 'fs';
+import { writeFileSync, mkdirSync, rmSync, chmodSync, readdirSync } from 'fs';
 import {
   getCommentStyleForFile,
   detectServicesFromTemplate,
+  detectServicesFromAllTemplates,
   processTemplate,
   findCommentRanges,
   extractProjectNameFromTemplate,
@@ -622,6 +623,139 @@ const test = "string";`;
       const template = 'Port: {devports:my-api_service:web-server}';
       const services = detectServicesFromTemplate(template);
       expect(services).toContain('web-server:my-api_service');
+    });
+  });
+
+  describe('detectServicesFromAllTemplates', () => {
+    let testDir: string;
+
+    beforeEach(() => {
+      // Create a unique temporary directory for each test
+      testDir = join(tmpdir(), `devports-test-${Date.now()}-${Math.random().toString(36).substring(7)}`);
+      mkdirSync(testDir, { recursive: true });
+    });
+
+    afterEach(() => {
+      try {
+        rmSync(testDir, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup errors
+      }
+    });
+
+    it('should detect services from multiple .devports files', async () => {
+      // Create .env.devports with some services
+      const envTemplate = `DATABASE_PORT={devports:postgres:main}
+API_PORT={devports:api:server}`;
+      writeFileSync(join(testDir, '.env.devports'), envTemplate);
+
+
+      // Create docker-compose.dev.yml.devports with additional services
+      const dockerTemplate = `
+services:
+  postgres:
+    ports:
+      - '{devports:postgres:main}:5432'
+  postgres-test:
+    ports:
+      - '{devports:postgres:test}:5432'
+  redis:
+    ports:
+      - '{devports:redis:cache}:6379'
+`;
+      writeFileSync(join(testDir, 'docker-compose.dev.yml.devports'), dockerTemplate);
+
+      const services = await detectServicesFromAllTemplates(testDir);
+
+      expect(services).toContain('main:postgres');
+      expect(services).toContain('server:api');
+      expect(services).toContain('test:postgres');
+      expect(services).toContain('cache:redis');
+      expect(services).toHaveLength(4);
+    });
+
+    it('should handle directory with no .devports files', async () => {
+      // Create some regular files (non-.devports)
+      writeFileSync(join(testDir, 'package.json'), '{}');
+      writeFileSync(join(testDir, 'README.md'), '# Test');
+
+      const services = await detectServicesFromAllTemplates(testDir);
+
+      expect(services).toEqual([]);
+    });
+
+    it('should deduplicate services found in multiple files', async () => {
+      // Both files reference the same service
+      const template1 = 'DATABASE_PORT={devports:postgres:main}';
+      const template2 = 'Port: {devports:postgres:main}:5432';
+
+      writeFileSync(join(testDir, 'file1.devports'), template1);
+      writeFileSync(join(testDir, 'file2.devports'), template2);
+
+      const services = await detectServicesFromAllTemplates(testDir);
+
+      expect(services).toEqual(['main:postgres']);
+      expect(services).toHaveLength(1);
+    });
+
+    it('should handle files with read errors gracefully', async () => {
+      // Create a valid file
+      writeFileSync(join(testDir, 'valid.devports'), '{devports:postgres:main}');
+
+      // Create an unreadable file (if possible on this system)
+      const invalidFile = join(testDir, 'invalid.devports');
+      writeFileSync(invalidFile, '{devports:api:server}');
+
+      // Try to make it unreadable (may not work on all systems)
+      try {
+        chmodSync(invalidFile, 0o000);
+      } catch {
+        // Skip this test if chmod fails
+      }
+
+      const services = await detectServicesFromAllTemplates(testDir);
+
+      // Should at least find the valid service
+      expect(services).toContain('main:postgres');
+
+      // Restore permissions for cleanup
+      try {
+        chmodSync(invalidFile, 0o644);
+      } catch {
+        // Ignore cleanup errors
+      }
+    });
+
+    it('should ignore node_modules and .git directories', async () => {
+      // Create valid file in root
+      writeFileSync(join(testDir, 'root.devports'), '{devports:postgres:main}');
+
+      // Create files in ignored directories
+      mkdirSync(join(testDir, 'node_modules'), { recursive: true });
+      writeFileSync(join(testDir, 'node_modules', 'ignored.devports'), '{devports:api:server}');
+
+      mkdirSync(join(testDir, '.git'), { recursive: true });
+      writeFileSync(join(testDir, '.git', 'ignored.devports'), '{devports:redis:cache}');
+
+      const services = await detectServicesFromAllTemplates(testDir);
+
+      expect(services).toEqual(['main:postgres']);
+      expect(services).toHaveLength(1);
+    });
+
+    it('should handle nested .devports files', async () => {
+      // Create file in root
+      writeFileSync(join(testDir, 'root.devports'), '{devports:postgres:main}');
+
+      // Create nested directory with .devports file
+      mkdirSync(join(testDir, 'config'), { recursive: true });
+      writeFileSync(join(testDir, 'config', 'nested.devports'), '{devports:api:server}');
+
+      const services = await detectServicesFromAllTemplates(testDir);
+
+      expect(services).toContain('main:postgres');
+      expect(services).toContain('server:api');
+      expect(services).toHaveLength(2);
     });
   });
 

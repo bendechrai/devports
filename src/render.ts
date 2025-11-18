@@ -1,4 +1,6 @@
 import { readFileSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import { glob } from 'glob';
 import { getOrAllocatePort } from './port-manager.js';
 import MagicString from 'magic-string';
 
@@ -202,6 +204,41 @@ export function detectServicesFromTemplate(
   }
 
   return [...new Set(services)];
+}
+
+/**
+ * Detect services from all *.devports files in a directory
+ * Scans all template files and combines the service detection results
+ */
+export async function detectServicesFromAllTemplates(
+  directory: string = '.'
+): Promise<string[]> {
+  try {
+    const devportsFiles = await glob('**/*.devports', {
+      cwd: directory,
+      ignore: ['node_modules/**', '.git/**'],
+      dot: true,
+    });
+
+    const allServices: string[] = [];
+
+    for (const devportsFile of devportsFiles) {
+      try {
+        const fullPath = join(directory, devportsFile);
+        const templateContent = readFileSync(fullPath, 'utf-8');
+        const services = detectServicesFromTemplate(templateContent, fullPath);
+        allServices.push(...services);
+      } catch (error) {
+        console.warn(`⚠️  Could not read template ${devportsFile}: ${error}`);
+      }
+    }
+
+    // Remove duplicates and return
+    return [...new Set(allServices)];
+  } catch (error) {
+    console.warn(`⚠️  Error scanning for *.devports files: ${error}`);
+    return [];
+  }
 }
 
 /**

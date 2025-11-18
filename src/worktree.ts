@@ -8,6 +8,7 @@ import { glob } from 'glob';
 import { allocatePort, releasePort } from './port-manager.js';
 import {
   detectServicesFromTemplate,
+  detectServicesFromAllTemplates,
   extractProjectNameFromTemplate,
   makeUrlSafe,
   processTemplate,
@@ -81,29 +82,67 @@ export async function createWorktree(
   let projectName: string | null = null;
   let templatePath: string | null = null;
 
-  if (validatedTemplate ?? existsSync('.env.devports')) {
-    templatePath = validatedTemplate ?? '.env.devports';
-    try {
-      templateContent = readFileSync(templatePath, 'utf-8');
-      services = detectServicesFromTemplate(templateContent, templatePath);
-      projectName = extractProjectNameFromTemplate(templateContent);
-    } catch {
-      console.warn(
-        `⚠️  Could not read template ${templatePath}, falling back to detection`
-      );
-      services =
-        validatedServices ??
-        detectServices(validatedPath, validatedEnvFile ?? undefined);
-    }
-  } else {
-    services =
-      validatedServices ??
-      detectServices(validatedPath, validatedEnvFile ?? undefined);
-  }
-
   // Override with explicit services if provided
   if (validatedServices) {
     services = validatedServices;
+  } else {
+    // First, try to detect services from all *.devports files in current directory
+    try {
+      const detectedServices = await detectServicesFromAllTemplates('.');
+
+      if (detectedServices.length > 0) {
+        services = detectedServices;
+        console.log(
+          `📍 Detected services from *.devports templates: ${detectedServices.map((s) => s.split(':')[0]).join(', ')}`
+        );
+
+        // Also try to extract project name from .env.devports if it exists
+        if (validatedTemplate ?? existsSync('.env.devports')) {
+          templatePath = validatedTemplate ?? '.env.devports';
+          try {
+            templateContent = readFileSync(templatePath, 'utf-8');
+            projectName = extractProjectNameFromTemplate(templateContent);
+          } catch {
+            // Continue without project name extraction
+          }
+        }
+      } else {
+        // Fallback to old detection method if no *.devports files found
+        if (validatedTemplate ?? existsSync('.env.devports')) {
+          templatePath = validatedTemplate ?? '.env.devports';
+          try {
+            templateContent = readFileSync(templatePath, 'utf-8');
+            services = detectServicesFromTemplate(templateContent, templatePath);
+            projectName = extractProjectNameFromTemplate(templateContent);
+          } catch {
+            console.warn(
+              `⚠️  Could not read template ${templatePath}, falling back to detection`
+            );
+            services = detectServices(validatedPath, validatedEnvFile ?? undefined);
+          }
+        } else {
+          services = detectServices(validatedPath, validatedEnvFile ?? undefined);
+        }
+      }
+    } catch (error) {
+      console.warn(`⚠️  Error detecting services from templates: ${error}`);
+      // Fallback to old detection method
+      if (validatedTemplate ?? existsSync('.env.devports')) {
+        templatePath = validatedTemplate ?? '.env.devports';
+        try {
+          templateContent = readFileSync(templatePath, 'utf-8');
+          services = detectServicesFromTemplate(templateContent, templatePath);
+          projectName = extractProjectNameFromTemplate(templateContent);
+        } catch {
+          console.warn(
+            `⚠️  Could not read template ${templatePath}, falling back to detection`
+          );
+          services = detectServices(validatedPath, validatedEnvFile ?? undefined);
+        }
+      } else {
+        services = detectServices(validatedPath, validatedEnvFile ?? undefined);
+      }
+    }
   }
 
   // Use project name from template or generate one from worktree directory
@@ -286,7 +325,7 @@ async function autoRenderDevportsFiles(
 ): Promise<void> {
   try {
     const devportsFiles = await glob('**/*.devports', {
-      cwd: process.cwd(),
+      cwd: worktreePath,
       ignore: ['node_modules/**', '.git/**'],
     });
 
@@ -299,7 +338,7 @@ async function autoRenderDevportsFiles(
     );
 
     for (const devportsFile of devportsFiles) {
-      const fullDevportsPath = join(process.cwd(), devportsFile);
+      const fullDevportsPath = join(worktreePath, devportsFile);
       const outputFileName = devportsFile.replace(/\.devports$/, '');
       const outputPath = join(worktreePath, outputFileName);
 
