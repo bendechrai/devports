@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+*.tgz
+
+# Logs
+*.log
+
+# Coverage
+coverage/
+
+# Generated files
+CHANGELOG.md
+
+# Config files that should maintain specific formatting
+package-lock.json

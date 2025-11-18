@@ -1,0 +1,10 @@
+# Shellcheck configuration for completion scripts
+
+# Disable warnings that are expected in shell completion scripts
+disable=SC2016  # Expressions don't expand in single quotes (expected in _arguments)
+disable=SC2034  # Variable appears unused (completion variables like state, line, opt_args)
+disable=SC2207  # Prefer mapfile (COMPREPLY arrays are fine in completion scripts)
+disable=SC1087  # Use braces for arrays (zsh array syntax is different)
+disable=SC2125  # Brace expansions literal in assignments (zsh completion specific)
+disable=SC2154  # Variable referenced but not assigned (zsh provides $words, $CURRENT)
+disable=SC2155  # Declare and assign separately (local var=$(command) is fine in completion)

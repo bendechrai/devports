@@ -1,0 +1,369 @@
+/**
+ * Secure worktree operations with input validation and safe command execution
+ */
+
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { join, basename } from 'path';
+import { glob } from 'glob';
+import { allocatePort, releasePort } from './port-manager.js';
+import {
+  detectServicesFromTemplate,
+  extractProjectNameFromTemplate,
+  makeUrlSafe,
+  processTemplate,
+} from './render.js';
+import {
+  safeGitWorktreeAdd,
+  safeGitWorktreeRemove,
+  safeScriptExecution,
+} from './execution.js';
+import {
+  validateWorktreePath,
+  validateBranchName,
+  validateScriptPath,
+  validateServices,
+  validateTemplatePath,
+  validateOutputPath,
+} from './validation.js';
+
+interface WorktreeOptions {
+  envFile?: string | null; // null means skip env file creation
+  services?: string[];
+  template?: string;
+  postHook?: string;
+}
+
+/**
+ * Secure version of createWorktree with input validation and safe command execution
+ */
+export async function createWorktree(
+  path: string,
+  branch: string,
+  options: WorktreeOptions = {}
+): Promise<{ worktreePath: string; ports: Record<string, number> }> {
+  // Validate all inputs first
+  const validatedPath = validateWorktreePath(path);
+  const validatedBranch = validateBranchName(branch);
+
+  let validatedServices;
+  if (options.services) {
+    const validatedServiceList = validateServices(options.services);
+    validatedServices = validatedServiceList.map(
+      (s) => `${s.service}:${s.type}`
+    );
+  }
+
+  const validatedTemplate = options.template
+    ? validateTemplatePath(options.template)
+    : undefined;
+  const validatedEnvFile = options.envFile
+    ? validateOutputPath(options.envFile)
+    : options.envFile;
+  const validatedPostHook = options.postHook
+    ? validateScriptPath(options.postHook)
+    : undefined;
+
+  // Extract worktree identifier from path
+  const worktreeDir = basename(validatedPath);
+
+  // Create the git worktree using safe execution
+  try {
+    await safeGitWorktreeAdd(validatedPath, validatedBranch);
+  } catch (error) {
+    throw new Error(
+      `Failed to create git worktree: ${(error as Error).message}`
+    );
+  }
+
+  // Determine services to allocate and extract project name
+  let services: string[];
+  let templateContent: string | null = null;
+  let projectName: string | null = null;
+  let templatePath: string | null = null;
+
+  if (validatedTemplate ?? existsSync('.env.devports')) {
+    templatePath = validatedTemplate ?? '.env.devports';
+    try {
+      templateContent = readFileSync(templatePath, 'utf-8');
+      services = detectServicesFromTemplate(templateContent, templatePath);
+      projectName = extractProjectNameFromTemplate(templateContent);
+    } catch {
+      console.warn(
+        `⚠️  Could not read template ${templatePath}, falling back to detection`
+      );
+      services =
+        validatedServices ??
+        detectServices(validatedPath, validatedEnvFile ?? undefined);
+    }
+  } else {
+    services =
+      validatedServices ??
+      detectServices(validatedPath, validatedEnvFile ?? undefined);
+  }
+
+  // Override with explicit services if provided
+  if (validatedServices) {
+    services = validatedServices;
+  }
+
+  // Use project name from template or generate one from worktree directory
+  const finalProjectName = projectName ?? worktreeDir;
+  const urlSafeProjectName = makeUrlSafe(finalProjectName);
+
+  console.log(`✅ Created worktree: ${validatedPath}`);
+  console.log(`   Branch: ${validatedBranch}`);
+
+  if (services.length > 0) {
+    console.log(
+      `📍 Detected services: ${services.map((s) => s.split(':')[0]).join(', ')}`
+    );
+  }
+
+  // Allocate ports for each service
+  const allocatedPorts: Record<string, number> = {};
+  const serviceTypes: Record<string, string> = {};
+  for (const service of services) {
+    const [serviceName, serviceType] = service.split(':');
+    const port = await allocatePort(
+      urlSafeProjectName,
+      serviceName,
+      serviceType
+    );
+    allocatedPorts[serviceName] = port;
+    serviceTypes[serviceName] = serviceType;
+  }
+
+  if (Object.keys(allocatedPorts).length > 0) {
+    console.log('🔌 Allocated ports:');
+    for (const [service, port] of Object.entries(allocatedPorts)) {
+      const type = serviceTypes[service];
+      console.log(`   ${service}: ${port} (${type})`);
+    }
+  }
+
+  // Generate .env file in the worktree if not skipped
+  if (validatedEnvFile !== null) {
+    const envPath = join(validatedPath, validatedEnvFile ?? '.env');
+
+    if (templateContent) {
+      // Use template if available
+      const processedContent = processTemplate(
+        templateContent,
+        allocatedPorts,
+        urlSafeProjectName,
+        templatePath ?? undefined
+      );
+      writeFileSync(envPath, processedContent);
+      console.log(`📝 Generated ${basename(envPath)} from template`);
+    } else if (Object.keys(allocatedPorts).length > 0) {
+      // Create basic .env with just port variables
+      const envContent = `${[
+        '# Generated by devports worktree',
+        `DEVPORTS_PROJECT_NAME=${finalProjectName}`,
+        '',
+        ...Object.entries(allocatedPorts).map(
+          ([service, port]) => `${service.toUpperCase()}_PORT=${port}`
+        ),
+        '',
+        '# Example connection URLs:',
+        ...Object.entries(allocatedPorts)
+          .filter(([, port]) => port >= 5432 && port < 5500)
+          .map(
+            ([_service, port]) =>
+              `# DATABASE_URL=postgresql://user:password@localhost:${port}/myapp`
+          ),
+      ].join('\n')}\n`;
+
+      writeFileSync(envPath, envContent);
+      console.log(
+        `📝 Generated basic ${basename(envPath)} with allocated ports`
+      );
+    }
+
+    // Auto-render any *.devports files found in current directory
+    await autoRenderDevportsFiles(
+      validatedPath,
+      allocatedPorts,
+      urlSafeProjectName
+    );
+  }
+
+  // Run post-hook if available
+  if (validatedPostHook ?? existsSync('.devports/hooks/post-worktree')) {
+    await runPostHook(
+      validatedPath,
+      allocatedPorts,
+      urlSafeProjectName,
+      validatedPostHook
+    );
+  }
+
+  return {
+    worktreePath: validatedPath,
+    ports: allocatedPorts,
+  };
+}
+
+/**
+ * Secure version of removeWorktree with input validation
+ */
+export async function removeWorktree(
+  path: string,
+  options: { force?: boolean } = {}
+): Promise<number> {
+  // Validate input
+  const validatedPath = validateWorktreePath(path);
+
+  // Determine project name from the worktree directory
+  const worktreeDir = basename(validatedPath);
+  const urlSafeProjectName = makeUrlSafe(worktreeDir);
+
+  console.log(`🔄 Removing worktree: ${validatedPath}`);
+
+  // Release all ports for this project
+  const released = await releasePort(urlSafeProjectName, undefined, true);
+
+  if (released > 0) {
+    console.log(`🔌 Released ${released} allocated port(s)`);
+  }
+
+  // Remove the git worktree using safe execution
+  try {
+    await safeGitWorktreeRemove(validatedPath, options.force);
+    console.log('✅ Git worktree removed successfully');
+  } catch (error) {
+    throw new Error(
+      `Failed to remove git worktree: ${(error as Error).message}`
+    );
+  }
+
+  return released;
+}
+
+/**
+ * Detect services from an existing .env file or defaults
+ */
+function detectServices(worktreePath: string, envFile?: string): string[] {
+  const services: string[] = [];
+  const envPath = join(process.cwd(), envFile ?? '.env');
+
+  if (existsSync(envPath)) {
+    const envContent = readFileSync(envPath, 'utf-8');
+
+    const portPatterns = [
+      { regex: /DATABASE_PORT|POSTGRES_PORT/i, service: 'postgres:postgres' },
+      { regex: /MYSQL_PORT/i, service: 'mysql:mysql' },
+      { regex: /REDIS_PORT/i, service: 'redis:redis' },
+      { regex: /API_PORT/i, service: 'api:api' },
+      { regex: /APP_PORT|WEB_PORT/i, service: 'app:app' },
+    ];
+
+    for (const pattern of portPatterns) {
+      if (
+        pattern.regex.test(envContent) &&
+        !services.includes(pattern.service)
+      ) {
+        services.push(pattern.service);
+      }
+    }
+  }
+
+  // Default to postgres if nothing detected
+  if (services.length === 0) {
+    services.push('postgres:postgres');
+  }
+
+  return services;
+}
+
+/**
+ * Auto-render any *.devports files found in the current directory
+ */
+async function autoRenderDevportsFiles(
+  worktreePath: string,
+  allocatedPorts: Record<string, number>,
+  projectName: string
+): Promise<void> {
+  try {
+    const devportsFiles = await glob('**/*.devports', {
+      cwd: process.cwd(),
+      ignore: ['node_modules/**', '.git/**'],
+    });
+
+    if (devportsFiles.length === 0) {
+      return;
+    }
+
+    console.log(
+      `🔄 Auto-rendering ${devportsFiles.length} *.devports files for worktree...`
+    );
+
+    for (const devportsFile of devportsFiles) {
+      const fullDevportsPath = join(process.cwd(), devportsFile);
+      const outputFileName = devportsFile.replace(/\.devports$/, '');
+      const outputPath = join(worktreePath, outputFileName);
+
+      try {
+        const templateContent = readFileSync(fullDevportsPath, 'utf-8');
+        const processedContent = processTemplate(
+          templateContent,
+          allocatedPorts,
+          projectName,
+          devportsFile
+        );
+
+        writeFileSync(outputPath, processedContent);
+        console.log(`   ${outputFileName} (from ${devportsFile})`);
+      } catch (error) {
+        console.warn(
+          `⚠️  Failed to render ${devportsFile}: ${(error as Error).message}`
+        );
+      }
+    }
+  } catch (error) {
+    console.warn(
+      `⚠️  Error during auto-rendering: ${(error as Error).message}`
+    );
+  }
+}
+
+/**
+ * Run post-worktree hook if available (secure version)
+ */
+async function runPostHook(
+  worktreePath: string,
+  allocatedPorts: Record<string, number>,
+  projectName: string,
+  customHook?: string
+): Promise<void> {
+  const hookScript = customHook ?? '.devports/hooks/post-worktree';
+
+  if (!existsSync(hookScript)) {
+    return;
+  }
+
+  try {
+    console.log('🔗 Running post-worktree hook...');
+
+    // Prepare environment variables
+    const hookEnv: Record<string, string> = {
+      DEVPORTS_PROJECT_NAME: projectName,
+      DEVPORTS_WORKTREE_PATH: worktreePath,
+    };
+
+    // Add all port variables
+    for (const [service, port] of Object.entries(allocatedPorts)) {
+      const varName = `${service.toUpperCase().replace(/-/g, '_')}_PORT`;
+      hookEnv[varName] = port.toString();
+    }
+
+    // Execute hook script safely
+    await safeScriptExecution(hookScript, hookEnv, {
+      cwd: process.cwd(),
+    });
+
+    console.log('✅ Post-worktree hook completed');
+  } catch (error) {
+    console.warn(`⚠️  Post-worktree hook failed: ${(error as Error).message}`);
+  }
+}

@@ -1,0 +1,44 @@
+# Source files (already compiled to dist/)
+src/
+test/
+*.test.ts
+*.spec.ts
+
+# Development files
+tsconfig.json
+vitest.config.ts
+.github/
+scripts/init.sh
+scripts/create-worktree-with-devports.sh
+
+# Documentation (keep only essential)
+PRODUCTION-READY.md
+SETUP-CHECKLIST.md
+PROJECT-SUMMARY.md
+PUBLISHING.md
+
+# Examples (keep - they're useful)
+# examples/
+
+# Build artifacts
+*.log
+.DS_Store
+coverage/
+.env
+*.tgz
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Misc
+node_modules/
+
+# Branding (web only, not needed in package)
+favicon/

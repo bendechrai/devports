@@ -1,0 +1,94 @@
+{
+  "name": "devports",
+  "version": "0.1.0",
+  "description": "Port allocation manager for multi-project development",
+  "type": "module",
+  "bin": {
+    "devports": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc && cp src/completion/*.sh dist/completion/",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepublishOnly": "npm run test && npm run build",
+    "lint": "eslint . --max-warnings 100 && tsc --noEmit && npm run lint:shell",
+    "lint:fix": "eslint . --fix",
+    "lint:shell": "shellcheck src/completion/bash.sh && zsh -n src/completion/zsh.sh",
+    "preuninstall": "node dist/cli.js completion zsh --uninstall > /dev/null 2>&1 || true && node dist/cli.js completion bash --uninstall > /dev/null 2>&1 || true"
+  },
+  "keywords": [
+    "ports",
+    "docker",
+    "development",
+    "devtools",
+    "postgres",
+    "port-management",
+    "cli",
+    "automation",
+    "worktree",
+    "multi-project"
+  ],
+  "author": {
+    "name": "Ben Dechrai",
+    "email": "ben@dechrai.com",
+    "url": "https://bendechr.ai"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bendechrai/devports.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bendechrai/devports/issues"
+  },
+  "homepage": "https://github.com/bendechrai/devports#readme",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "dependencies": {
+    "commander": "^12.1.0",
+    "glob": "^11.0.3",
+    "magic-string": "^0.30.21",
+    "proper-lockfile": "^4.1.2"
+  },
+  "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^11.0.0",
+    "@semantic-release/npm": "^13.1.2",
+    "@semantic-release/release-notes-generator": "^14.1.0",
+    "@types/glob": "^8.1.0",
+    "@types/node": "^22.10.2",
+    "@types/proper-lockfile": "^4.1.4",
+    "@typescript-eslint/eslint-plugin": "^8.47.0",
+    "@typescript-eslint/parser": "^8.47.0",
+    "@vitest/coverage-v8": "^4.0.10",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0",
+    "prettier": "^3.6.2",
+    "semantic-release": "^25.0.2",
+    "shellcheck": "^4.1.0",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.47.0",
+    "vitest": "^4.0.9"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
