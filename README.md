@@ -14,7 +14,7 @@
 
 Stop manually tracking port numbers across projects, Docker containers, and git worktrees. `devports` automatically manages port allocations so you never have conflicts.
 
-[![npm version](https://badge.fury.io/js/devports.svg)](https://www.npmjs.com/package/devports)
+[![npm version](https://img.shields.io/npm/v/devports)](https://www.npmjs.com/package/devports)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Why?
