@@ -5,7 +5,7 @@
 import { existsSync, readFileSync, writeFileSync, statSync } from 'fs';
 import { basename, join } from 'path';
 import { glob } from 'glob';
-import { allocatePort } from './port-manager.js';
+import { allocatePort, getOrAllocatePort } from './port-manager.js';
 import {
   detectServicesFromTemplate,
   extractProjectNameFromTemplate,
@@ -134,11 +134,9 @@ export async function setupCurrentDirectory(
   const serviceTypes: Record<string, string> = {};
   for (const service of services) {
     const [serviceName, serviceType] = service.split(':');
-    const port = await allocatePort(
-      urlSafeProjectName,
-      serviceName,
-      serviceType
-    );
+    const port = options.force
+      ? await getOrAllocatePort(urlSafeProjectName, serviceName, serviceType)
+      : await allocatePort(urlSafeProjectName, serviceName, serviceType);
     allocatedPorts[serviceName] = port;
     serviceTypes[serviceName] = serviceType;
   }
