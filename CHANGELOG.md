@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/bendechrai/devports/compare/v1.0.1...v1.0.2) (2025-11-18)
+
+
+### Bug Fixes
+
+* improve service detection for worktree command ([63b866f](https://github.com/bendechrai/devports/commit/63b866fcadc0571bc4eb64a7ea28e7ff96b24847))
+
 ## [1.0.1](https://github.com/bendechrai/devports/compare/v1.0.0...v1.0.1) (2025-11-18)
 
 
