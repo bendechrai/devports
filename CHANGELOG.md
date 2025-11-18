@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/bendechrai/devports/compare/v1.0.0...v1.0.1) (2025-11-18)
+
+
+### Bug Fixes
+
+* use existing ports when setup --force is used ([e92498e](https://github.com/bendechrai/devports/commit/e92498e9827c34d1127653b9942241033f9385d9)), closes [#1](https://github.com/bendechrai/devports/issues/1)
+
 # 1.0.0 (2025-11-18)
 
 
