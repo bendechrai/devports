@@ -1,11 +1,3 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./logo-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="./logo-light.svg">
-    <img src="./logo.svg" alt="devports" width="200"/>
-  </picture>
-</p>
-
 <h1 align="center">devports</h1>
 
 <p align="center">
