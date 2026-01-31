@@ -1,0 +1,9 @@
+{
+  "projectTitle": "devports",
+  "description": "Port allocation manager for multi-project development. Automatically manages port assignments across multiple projects, Docker containers, and git worktrees.",
+  "branch": "main",
+  "folders": ["src", "docs", "examples"],
+  "excludeFolders": ["node_modules", "dist", "test", ".git"],
+  "excludeFiles": ["package-lock.json"],
+  "rules": "TypeScript strict mode - no 'any' types. Follow the command pattern for CLI operations and the service layer pattern for business logic. Use the lock manager for concurrent port operations. Template/render pattern for configuration file generation."
+}
