@@ -1,4 +1,6 @@
 {
+  "url": "https://context7.com/bendechrai/devports",
+  "public_key": "pk_ACvXeDBwDXI9Notbrk8wW",
   "projectTitle": "devports",
   "description": "Port allocation manager for multi-project development. Automatically manages port assignments across multiple projects, Docker containers, and git worktrees.",
   "branch": "main",
