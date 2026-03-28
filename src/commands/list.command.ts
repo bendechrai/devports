@@ -6,7 +6,7 @@ import {
 } from './base-command.js';
 import { listAllocations, listReservations } from '../port-manager.js';
 import { ValidationService } from '../services/validation-service.js';
-import { VALID_PORT_TYPES } from '../types.js';
+import { loadConfig } from '../config.js';
 
 export class ListCommand implements Command {
   name = 'list';
@@ -210,7 +210,8 @@ export class ListCommand implements Command {
         break;
       }
       case 'types': {
-        VALID_PORT_TYPES.forEach((t) => console.log(t));
+        const config = loadConfig();
+        Object.keys(config.ranges).forEach((t) => console.log(t));
         process.exit(0);
         break;
       }

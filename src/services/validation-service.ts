@@ -3,6 +3,8 @@
  * Implements configurable validation patterns for DRY compliance
  */
 
+import { loadConfig } from '../config.js';
+
 export class ValidationError extends Error {
   constructor(message: string) {
     super(message);
@@ -293,15 +295,17 @@ export class ValidationService {
   }
 
   /**
-   * Validate service type against allowed types
+   * Validate service type against allowed types from loaded config
    */
   static validateServiceType(type: string): string {
     if (!type || typeof type !== 'string') {
       throw new ValidationError('Service type is required');
     }
 
-    const validTypes = ['postgres', 'mysql', 'redis', 'api', 'app', 'custom'];
     const normalizedType = type.toLowerCase().trim();
+
+    const config = loadConfig();
+    const validTypes = Object.keys(config.ranges);
 
     if (!validTypes.includes(normalizedType)) {
       throw new ValidationError(

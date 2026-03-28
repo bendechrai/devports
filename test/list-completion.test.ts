@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { mkdirSync, rmSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
 import { ListCommand } from '../src/commands/list.command.js';
 import { listAllocations } from '../src/port-manager.js';
-import { VALID_PORT_TYPES } from '../src/types.js';
+import { loadConfig } from '../src/config.js';
 
 // Mock the dependencies
 vi.mock('../src/port-manager.js');
@@ -232,20 +235,51 @@ describe('List Command Completion', () => {
   });
 
   describe('types completion', () => {
-    it('should output all valid port types and exit', () => {
+    it('should output all config-derived port types and exit', () => {
+      const config = loadConfig();
+      const configTypes = Object.keys(config.ranges);
+
       const command = new ListCommand();
 
       expect(() => {
         command.execute([], { completion: 'types' });
       }).toThrow('process.exit called');
 
-      // Should output all valid port types
-      VALID_PORT_TYPES.forEach((type) => {
+      // Should output all types from config, not a hardcoded list
+      configTypes.forEach((type) => {
         expect(mockConsoleLog).toHaveBeenCalledWith(type);
       });
 
-      expect(mockConsoleLog).toHaveBeenCalledTimes(VALID_PORT_TYPES.length);
+      expect(mockConsoleLog).toHaveBeenCalledTimes(configTypes.length);
       expect(mockProcessExit).toHaveBeenCalledWith(0);
+    });
+
+    it('should include project-defined types in completion', () => {
+      const tempProjectDir = join(
+        tmpdir(),
+        `devports-completion-test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      );
+      mkdirSync(join(tempProjectDir, '.devports'), { recursive: true });
+      writeFileSync(
+        join(tempProjectDir, '.devports', 'config.json'),
+        JSON.stringify({ ranges: { mongodb: { start: 27018, end: 27099 } } })
+      );
+
+      const originalCwd = process.cwd();
+      process.chdir(tempProjectDir);
+
+      try {
+        const command = new ListCommand();
+
+        expect(() => {
+          command.execute([], { completion: 'types' });
+        }).toThrow('process.exit called');
+
+        expect(mockConsoleLog).toHaveBeenCalledWith('mongodb');
+      } finally {
+        process.chdir(originalCwd);
+        rmSync(tempProjectDir, { recursive: true, force: true });
+      }
     });
   });
 

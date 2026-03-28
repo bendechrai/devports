@@ -3,7 +3,7 @@
  */
 
 import { listAllocations } from '../port-manager.js';
-import { VALID_PORT_TYPES } from '../types.js';
+import { loadConfig } from '../config.js';
 
 /**
  * Get all project names for completion
@@ -35,5 +35,10 @@ export function getServicesForCompletion(project: string): string[] {
  * Get all valid service types for completion
  */
 export function getServiceTypesForCompletion(): string[] {
-  return VALID_PORT_TYPES.slice();
+  try {
+    const config = loadConfig();
+    return Object.keys(config.ranges).sort();
+  } catch {
+    return [];
+  }
 }

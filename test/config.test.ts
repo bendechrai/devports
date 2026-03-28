@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -8,6 +8,7 @@ import {
   loadRegistry,
   saveRegistry,
 } from '../src/config.js';
+import { ValidationService } from '../src/services/validation-service.js';
 
 describe('Config', () => {
   let tempConfigDir: string;
@@ -144,6 +145,180 @@ describe('Config', () => {
           // Skip this test if we can't change permissions
         }
       }
+    });
+  });
+
+  describe('project-level config', () => {
+    let tempProjectDir: string;
+    let originalCwd: string;
+
+    beforeEach(() => {
+      tempProjectDir = join(
+        tmpdir(),
+        `devports-project-test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      );
+      mkdirSync(join(tempProjectDir, '.devports'), { recursive: true });
+      originalCwd = process.cwd();
+      process.chdir(tempProjectDir);
+    });
+
+    afterEach(() => {
+      process.chdir(originalCwd);
+      try {
+        rmSync(tempProjectDir, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup errors
+      }
+    });
+
+    it('should merge project config ranges over global config', () => {
+      const projectConfig = {
+        ranges: {
+          postgres: { start: 6000, end: 6099 },
+        },
+      };
+      writeFileSync(
+        join(tempProjectDir, '.devports', 'config.json'),
+        JSON.stringify(projectConfig, null, 2)
+      );
+
+      const config = loadConfig();
+
+      // Project override
+      expect(config.ranges.postgres).toEqual({ start: 6000, end: 6099 });
+      // Global defaults preserved
+      expect(config.ranges.mysql).toEqual({ start: 3308, end: 3399 });
+      expect(config.ranges.redis).toEqual({ start: 6381, end: 6399 });
+    });
+
+    it('should allow project config to add new service types', () => {
+      const projectConfig = {
+        ranges: {
+          mongodb: { start: 27018, end: 27099 },
+        },
+      };
+      writeFileSync(
+        join(tempProjectDir, '.devports', 'config.json'),
+        JSON.stringify(projectConfig, null, 2)
+      );
+
+      const config = loadConfig();
+
+      expect(config.ranges.mongodb).toEqual({ start: 27018, end: 27099 });
+      // Global defaults preserved
+      expect(config.ranges.postgres).toEqual({ start: 5434, end: 5499 });
+    });
+
+    it('should not override registryPath from project config', () => {
+      const projectConfig = {
+        ranges: {
+          postgres: { start: 6000, end: 6099 },
+        },
+      };
+      writeFileSync(
+        join(tempProjectDir, '.devports', 'config.json'),
+        JSON.stringify(projectConfig, null, 2)
+      );
+
+      const config = loadConfig();
+
+      expect(config.registryPath).toBe(join(tempConfigDir, 'ports.json'));
+    });
+
+    it('should use only global config when no project config exists', () => {
+      // Remove the .devports directory
+      rmSync(join(tempProjectDir, '.devports'), { recursive: true, force: true });
+
+      const config = loadConfig();
+
+      expect(config.ranges.postgres).toEqual({ start: 5434, end: 5499 });
+    });
+
+    it('should throw on invalid JSON in project config', () => {
+      writeFileSync(
+        join(tempProjectDir, '.devports', 'config.json'),
+        'not valid json'
+      );
+
+      expect(() => loadConfig()).toThrow('Project config file');
+      expect(() => loadConfig()).toThrow('contains invalid JSON');
+    });
+
+    it('should accept project-defined custom types in validation', () => {
+      const projectConfig = {
+        ranges: {
+          mongodb: { start: 27018, end: 27099 },
+        },
+      };
+      writeFileSync(
+        join(tempProjectDir, '.devports', 'config.json'),
+        JSON.stringify(projectConfig, null, 2)
+      );
+
+      expect(ValidationService.validateServiceType('mongodb')).toBe('mongodb');
+    });
+
+    it('should reject types not in global or project config', () => {
+      const projectConfig = {
+        ranges: {
+          mongodb: { start: 27018, end: 27099 },
+        },
+      };
+      writeFileSync(
+        join(tempProjectDir, '.devports', 'config.json'),
+        JSON.stringify(projectConfig, null, 2)
+      );
+
+      expect(() => ValidationService.validateServiceType('cassandra')).toThrow(
+        'Invalid service type'
+      );
+    });
+
+    it('should ignore registryPath in project config', () => {
+      const projectConfig = {
+        ranges: {
+          postgres: { start: 6000, end: 6099 },
+        },
+        registryPath: '/tmp/evil-registry.json',
+      };
+      writeFileSync(
+        join(tempProjectDir, '.devports', 'config.json'),
+        JSON.stringify(projectConfig, null, 2)
+      );
+
+      const config = loadConfig();
+
+      // registryPath must always come from global config
+      expect(config.registryPath).toBe(join(tempConfigDir, 'ports.json'));
+      expect(config.registryPath).not.toBe('/tmp/evil-registry.json');
+    });
+
+    it('should accept project-defined types in service:type format via validateServices', () => {
+      const projectConfig = {
+        ranges: {
+          mongodb: { start: 27018, end: 27099 },
+        },
+      };
+      writeFileSync(
+        join(tempProjectDir, '.devports', 'config.json'),
+        JSON.stringify(projectConfig, null, 2)
+      );
+
+      const result = ValidationService.validateServices(['mydb:mongodb']);
+      expect(result).toEqual([{ service: 'mydb', type: 'mongodb' }]);
+    });
+
+    it('should handle project config with empty ranges', () => {
+      const projectConfig = { ranges: {} };
+      writeFileSync(
+        join(tempProjectDir, '.devports', 'config.json'),
+        JSON.stringify(projectConfig, null, 2)
+      );
+
+      const config = loadConfig();
+
+      // Global defaults still available
+      expect(config.ranges.postgres).toEqual({ start: 5434, end: 5499 });
     });
   });
 

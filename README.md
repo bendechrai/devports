@@ -444,18 +444,27 @@ devports allocate "$PROJECT-$BRANCH" postgres --type postgres
 
 ### Team Collaboration
 
-Share consistent port ranges across the team:
+Share consistent port ranges across the team by adding a project-level config:
 
 ```bash
-# Commit a team config template
-cp ~/.config/devports/config.json ./devports-config.json
-git add devports-config.json
+# Create a project config
+mkdir -p .devports
+cat > .devports/config.json <<'EOF'
+{
+  "ranges": {
+    "postgres": { "start": 5434, "end": 5499 },
+    "redis": { "start": 6381, "end": 6399 },
+    "api": { "start": 3002, "end": 3099 },
+    "app": { "start": 5002, "end": 5999 }
+  }
+}
+EOF
 
-# Team members link it (keeps configs in sync)
-ln -sf "$(pwd)/devports-config.json" ~/.config/devports/config.json
+# Commit it so the whole team shares the same ranges
+git add .devports/config.json
 ```
 
-This symlink approach ensures everyone stays in sync automatically when the config is updated.
+Project config (`.devports/config.json`) is merged on top of the global user config (`~/.config/devports/config.json`). Project ranges override global ranges for the same service type, while global ranges for other types are preserved. This lets each project define its own port ranges while individual developers keep their personal defaults for everything else.
 
 ### Cleanup
 

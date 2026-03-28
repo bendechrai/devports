@@ -26,24 +26,3 @@ export interface Registry {
   }[];
 }
 
-// Valid port types - exported for validation
-export const VALID_PORT_TYPES = [
-  'postgres',
-  'mysql',
-  'redis',
-  'api',
-  'app',
-  'custom',
-] as const;
-
-export type PortType = (typeof VALID_PORT_TYPES)[number];
-
-// Helper to validate port type
-export function isValidPortType(type: string): type is PortType {
-  return VALID_PORT_TYPES.includes(type as PortType);
-}
-
-// Helper to get valid types as string
-export function getValidPortTypes(): string {
-  return VALID_PORT_TYPES.join(', ');
-}

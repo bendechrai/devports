@@ -13,6 +13,10 @@ function getConfigFile(): string {
   return join(getConfigDir(), 'config.json');
 }
 
+function getProjectConfigFile(): string {
+  return join(process.cwd(), '.devports', 'config.json');
+}
+
 function getRegistryFile(): string {
   return join(getConfigDir(), 'ports.json');
 }
@@ -52,7 +56,7 @@ export function ensureConfigDir(): void {
   }
 }
 
-export function loadConfig(): Config {
+function loadGlobalConfig(): Config {
   ensureConfigDir();
   const configFile = getConfigFile();
 
@@ -84,6 +88,45 @@ export function loadConfig(): Config {
       `Failed to read config file ${configFile}: ${(error as Error).message}`
     );
   }
+}
+
+function loadProjectConfig(): Partial<Config> | null {
+  const projectConfigFile = getProjectConfigFile();
+
+  if (!existsSync(projectConfigFile)) {
+    return null;
+  }
+
+  try {
+    const content = readFileSync(projectConfigFile, 'utf-8');
+    return JSON.parse(content) as Partial<Config>;
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new Error(
+        `Project config file ${projectConfigFile} contains invalid JSON: ${error.message}`
+      );
+    }
+    throw new Error(
+      `Failed to read project config file ${projectConfigFile}: ${(error as Error).message}`
+    );
+  }
+}
+
+export function loadConfig(): Config {
+  const globalConfig = loadGlobalConfig();
+  const projectConfig = loadProjectConfig();
+
+  if (!projectConfig) {
+    return globalConfig;
+  }
+
+  return {
+    ...globalConfig,
+    ranges: {
+      ...globalConfig.ranges,
+      ...(projectConfig.ranges ?? {}),
+    },
+  };
 }
 
 export function loadRegistry(): Registry {

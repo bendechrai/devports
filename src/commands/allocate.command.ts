@@ -7,7 +7,7 @@ import {
 import { allocatePort, listAllocations } from '../port-manager.js';
 import { ValidationService } from '../services/validation-service.js';
 import { ResponseFormatter } from '../services/response-formatter.js';
-import { VALID_PORT_TYPES } from '../types.js';
+import { loadConfig } from '../config.js';
 
 export class AllocateCommand implements Command {
   name = 'allocate';
@@ -103,7 +103,8 @@ export class AllocateCommand implements Command {
         break;
       }
       case 'types': {
-        VALID_PORT_TYPES.forEach((t) => console.log(t));
+        const config = loadConfig();
+        Object.keys(config.ranges).forEach((t) => console.log(t));
         process.exit(0);
         break;
       }

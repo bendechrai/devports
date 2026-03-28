@@ -608,7 +608,7 @@ describe('ValidationService.validateServiceType', () => {
       'Service type is required'
     );
     expect(() => ValidationService.validateServiceType('invalid')).toThrow(
-      'Invalid service type. Must be one of: postgres, mysql, redis, api, app, custom'
+      'Invalid service type'
     );
   });
 });

@@ -173,16 +173,11 @@ it('should allocate different port types in correct ranges', async () => {
    };
    ```
 
-2. **Update valid types** in `src/types.ts`:
+2. **Add documentation** and examples
 
-   ```typescript
-   export const VALID_PORT_TYPES = [
-     // ... existing
-     'newtype',
-   ] as const;
-   ```
-
-3. **Add documentation** and examples
+   Valid types are derived automatically from the config ranges, so no separate
+   type list needs updating. Project-level config (`.devports/config.json`) can
+   also define custom types that override or extend the global defaults.
 
 ### Adding a New CLI Command
 
