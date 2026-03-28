@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/bendechrai/devports/compare/v1.0.2...v1.1.0) (2026-03-28)
+
+
+### Features
+
+* support project-level config that overrides global config ([1420f52](https://github.com/bendechrai/devports/commit/1420f52ba936ab9ae12d61b49ee03f62534953ba)), closes [#2](https://github.com/bendechrai/devports/issues/2)
+
 ## [1.0.2](https://github.com/bendechrai/devports/compare/v1.0.1...v1.0.2) (2025-11-18)
 
 
